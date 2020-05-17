@@ -35,7 +35,7 @@ class AutoImage {
             drawable: Drawable,
             result: (drawable: Drawable?) -> Unit
         ) {
-            if (count > 10) {
+            if (count > 20) {
                 return
             }
             count++
@@ -50,7 +50,11 @@ class AutoImage {
         }
     }
 
-    @Around("execution(* android.widget.ImageView.setImageDrawable(..))")
+    /**
+     * withincode 表示某个类的构造方法或方法中涉及到的JPoint
+     * https://juejin.im/entry/588d45365c497d0056c471ef
+     */
+    @Around("execution(* android.widget.ImageView.setImageDrawable(..)) && !withincode(* com.bumptech.glide.request.target.setDrawable(..))")
     fun onSetImageDrawable(joinPoint: ProceedingJoinPoint) {
         joinPoint.signature
         if (adapter != null) {
@@ -108,11 +112,5 @@ class AutoImage {
         } else {
             convertingList.remove(res)
         }
-    }
-
-    @Around("execution(* android.content.res.TypedArray.recycle(..))")
-    fun getDrawableForDensity(joinPoint: ProceedingJoinPoint) {
-        joinPoint.proceed()
-        Log.d("哇哦大苏打", "getDrawableForDensity")
     }
 }
