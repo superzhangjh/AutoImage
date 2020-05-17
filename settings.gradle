@@ -1,0 +1,3 @@
+rootProject.name='AutoImage'
+include ':app'
+include ':autoimage'
