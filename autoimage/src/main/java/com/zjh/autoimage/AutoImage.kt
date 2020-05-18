@@ -5,6 +5,7 @@ import android.graphics.drawable.Drawable
 import android.util.Log
 import android.util.LruCache
 import android.widget.ImageView
+import androidx.core.view.ViewCompat
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.ImageViewTarget
 import org.aspectj.lang.JoinPoint
@@ -24,9 +25,8 @@ class AutoImage {
         val instances: AutoImage by lazy { AutoImage() }
     }
 
-    private val convertingList by lazy { mutableListOf<Drawable>() }
-    private val caches by lazy { mutableMapOf<Drawable, Drawable>() }
     private var count = 0
+    private val viewId by lazy { R.id.id_auto_image_view_converting }
 
     var adapter: AutoImageConverter? = object :
         AutoImageConverter {
@@ -53,64 +53,39 @@ class AutoImage {
     /**
      * withincode 表示某个类的构造方法或方法中涉及到的JPoint
      * https://juejin.im/entry/588d45365c497d0056c471ef
+     * //TODO:重写一个View的background方法，与这个的id区分开，因为src和background是不冲突的两个图层
      */
-    @Around("execution(* android.widget.ImageView.setImageDrawable(..)) && !withincode(* com.bumptech.glide.request.target.setDrawable(..))")
+    @Around("execution(* android.widget.ImageView.setImageDrawable(..))")
     fun onSetImageDrawable(joinPoint: ProceedingJoinPoint) {
-        joinPoint.signature
-        if (adapter != null) {
+        val iv = joinPoint.target as ImageView
+        val tag: Any? = iv.getTag(viewId)
+        val converting = if (tag == null) {
+            false
+        } else {
+            tag as Boolean
+        }
+        Log.d("啊是大飒飒", "${iv.id} 开始转换 是否正在转换：${converting}")
+        if (!converting && adapter != null) {
+            iv.setTag(viewId, true)
             for ((i, it) in joinPoint.args.withIndex()) {
-//                if (it != null && it is Drawable && !isConverting(it)) {
-                if (it != null && it is Drawable) {
-                     //检查缓存
-//                    val cache = caches[it]
-//                    if (cache == null && !caches.values.contains(it)) {
-//                        设置成正在转换
-//                        setConvertState(it, true)
-                        val iv = joinPoint.target as ImageView
-
-                        //交由转换器处理
-                        adapter!!.convert(iv, it) { drawable ->
-
-                            //添加到缓存
-                            if (drawable != null) {
-                                caches[it] = drawable
-                            }
-
-                            //设置转换完成，注意这里要使用未转换的res，不是转换完成的
-//                            setConvertState(it, false)
-
-                            //修改参数值为已适配的，再执行view设置资源的方法
-                            joinPoint.args[i] = drawable
-                            joinPoint.proceed()
-                            Log.d(TAG, "onSetImageDrawable setResource no cache ${iv.id} 转换前：$it 转换后：$drawable")
+                if (it is Drawable) {
+                    adapter!!.convert(iv, it) {drawable ->
+                        //修改参数值为已适配的，再执行view设置资源的方法
+                        joinPoint.args[i] = drawable
+                        joinPoint.proceed()
+                        val finish = drawable != null
+                        if (finish) {
+                            iv.setTag(viewId, false)
                         }
-//                    } else {
-                        //直接使用缓存
-//                        joinPoint.args[i] = cache
-//                        joinPoint.proceed()
-//
-//                        val iv = joinPoint.target as ImageView
-//                        Log.d(TAG, "onSetImageDrawable setResource has cache ${iv.id} $it")
-//                    }
+                        Log.d("啊是大飒飒", "${iv.id} 转化完成:${finish} 转化前：$it 转换后：$drawable")
+                    }
                     return
                 }
             }
+            iv.setTag(viewId, false)
         }
         //如无转换，则执行原方法
         joinPoint.proceed()
-        val iv = joinPoint.target as ImageView
-//        Log.d(TAG, "onSetImageDrawable null ${iv.id}")
-    }
-
-    private fun isConverting(res: Drawable): Boolean {
-        return convertingList.contains(res)
-    }
-
-    private fun setConvertState(res: Drawable, convert: Boolean) {
-        if (convert) {
-            convertingList.add(res)
-        } else {
-            convertingList.remove(res)
-        }
+        Log.d("啊是大飒飒", "${iv.id} 无转换")
     }
 }
